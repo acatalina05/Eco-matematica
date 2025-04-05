@@ -2,8 +2,15 @@ from scipy.optimize import linprog
 import numpy as np
 # Precio por bulto de 60kg en USD - actual
 precio = 527.78
+
+# Producción total de café en Millones de bultos de 60kg
+P = 14_795
+
+# Consumo interno de café en Colombia en millones de bultos de 60kg
+C = 2_280 
+
 # Aranceles (expresados como porcentaje, por ejemplo, 0.05 = 5%) 
-arancel_Usa = 0.1
+arancel_Usa = 0.0
 arancel_Can = 0.0
 arancel_Jap = 0.12
 arancel_UE = 0.0
@@ -13,18 +20,6 @@ demanda_Usa = 23_950
 demanda_Can = 5_400
 demanda_Jap = 7_176
 demanda_UE = 42_046
-
-#Participacion en exportaciones
-pond_Usa = 0.02
-pond_can= 0.079
-pond_jap=0.05
-pond_UE = 0.2 
-
-# Producción total de café en Millones de bultos de 60kg
-P = 14_795
-
-# Consumo interno de café en Colombia en millones de bultos de 60kg
-C = 2_280 
 
 # valor del flete por en bultos de 60kg
 flete_Usa = 2.50
@@ -39,9 +34,41 @@ precios = np.array ([precio])
 aranceles = np.array([arancel_Usa, arancel_Can, arancel_Jap, arancel_UE])
 demanda = np.array([demanda_Usa, demanda_Can, demanda_Jap,demanda_UE])
 flete = np.array([flete_Usa, flete_Can, flete_Jap, flete_UE])
-produccion = P
-consumo_colombia = C
 disponible = P-C
 limite_pais = 0.4 * disponible
 precio_neto = precio * (1 - aranceles) - flete
 precios = np.array([precio] * len(paises))
+
+# Precio neto por país 
+precio_neto = precio * (1 - aranceles) - flete
+
+# Función objetivo (negativa porque linprog minimiza)
+c = -precio_neto
+
+# Restricción: no exportar más de lo disponible
+A_ub = [np.ones(len(paises))]
+b_ub = [disponible]
+
+# Límites por país: no más de su demanda ni del 40% disponible
+bounds = [(0, min(d, limite_pais)) for d in demanda]
+
+# Resolver
+res = linprog(c=c, A_ub=A_ub, b_ub=b_ub, bounds=bounds, method='interior-point')
+
+# Resultados
+if res.success:
+    print("Distribución óptima de exportaciones (en miles de bultos de 60kg):\n")
+    print(f"{'País':<20} {'Cantidad Exportada':>20}")
+    print("-" * 45)
+
+    for i, x in enumerate(res.x):
+        print(f"{paises[i]:<20} {x:>15,.3f} miles de bultos")
+
+    ingreso_total = np.dot(precio_neto, res.x)
+    print("\nIngreso total estimado: ${:,.2f} millones de USD".format(ingreso_total))
+else:
+    print("No se encontró una solución óptima.")
+
+
+
+
